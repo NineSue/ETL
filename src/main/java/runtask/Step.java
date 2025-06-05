@@ -1,26 +1,36 @@
 package runtask;
 
+import core.flowdata.RowSetTable;
+
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 public class Step {
     protected Integer stepId;
     protected String description;
     protected String subType;//子类型
-    protected String config;//具体配置
+    protected HashMap<String,Object> config=new HashMap<>();//具体配置
     protected String domain;//主类型
     protected List<String> parentStepId = new ArrayList<>();//上游ID
     protected List<String> childStepId = new ArrayList<>();//下游ID
-    
-    public Step(Integer stepId, String description, String subType, String domain, List<String> parentStepId, List<String> childStepId) {
+    protected RowSetTable subData;
+
+    public Step(Integer stepId, String description, String subType, String domain, List<String> parentStepId, List<String> childStepId,HashMap<String,Object> config) {
         this.stepId = stepId;
         this.description = description;
         this.subType = subType;
         this.domain = domain;
         this.parentStepId = parentStepId;
         this.childStepId = childStepId;
+        this.config=config;
     }
-    
+    public RowSetTable getSubData() {
+        return subData;
+    }
+    public void setSubData(RowSetTable subData) {
+        this.subData = subData;
+    }
     public Step() {
     }
     
@@ -28,53 +38,64 @@ public class Step {
         return stepId;
     }
     
-    public void setStepId(Integer stepId) {
+    public Step withStepId(Integer stepId) {
         this.stepId = stepId;
+        return this;
     }
     
-    public String getDescription() {
+    public String getDes() {
         return description;
     }
     
-    public void setDescription(String description) {
+    public Step withDes(String description) {
         this.description = description;
+        return this;
     }
     
     public String getSubType() {
         return subType;
     }
     
-    public void setSubType(String type) {
+    public Step withSubType(String type) {
         this.subType = type;
+        return this;
     }
     
     public String getDomain() {
         return domain;
     }
     
-    public void setDomain(String domain) {
+    public Step withDomain(String domain) {
         this.domain = domain;
+        return this;
     }
     
     public List<String> getParentStepId() {
         return parentStepId;
     }
     
-    public void setParentStepId(List<String> parentStepId) {
+    public Step withParentStepId(List<String> parentStepId) {
         this.parentStepId = parentStepId;
+        return this;
     }
-    public String getConfig() {
+    public HashMap<String, Object> getConfig() {
         return config;
     }
-    public void setConfig(String config) {
-        this.config = config;
+
+    public Step withConfig(String key,Object value) {
+        this.config.put(key,value);
+        return this;
     }
-    
+    public Step withConfig(HashMap<String, Object> config) {
+        this.config = config != null ? config : new HashMap<>();
+        return this;
+    }
     public List<String> getChildStepId() {
         return childStepId;
     }
     
-    public void setChildStepId(List<String> childStepId) {
+    public Step withChildStepId(List<String> childStepId) {
         this.childStepId = childStepId;
+        return this;
     }
 }
