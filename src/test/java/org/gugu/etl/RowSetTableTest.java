@@ -22,6 +22,8 @@ public class RowSetTableTest {
         row5.addAll(Arrays.asList("0005", "20", "woman"));
         table.addRow(new Row[]{row1, row2, row3, row4, row5});
         RowSetTable lambaTb = table;
+        String[] infos = lambaTb.getInsertSQL("info");
+        System.out.println(String.join("\n", infos));
         table = table.where(row -> row.get("id", lambaTb).equals("0001"))
                      .update(row -> row.set("age","30",lambaTb));
         System.out.println(table);

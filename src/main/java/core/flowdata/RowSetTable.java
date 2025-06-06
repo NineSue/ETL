@@ -1,5 +1,6 @@
 package core.flowdata;
 
+import ch.qos.logback.classic.spi.EventArgUtil;
 import core.intf.RowLive;
 import core.intf.RowSelect;
 import core.intf.RowUpdate;
@@ -147,6 +148,15 @@ public class RowSetTable {
         }
         return builder.toString();
     }
+    
+    public String[] getInsertSQL(String tableName) {
+        List<String> sql = new ArrayList<>();
+        for (Row row : this.rowList) {
+            sql.add(row.toInsertSQL(this.field.toArray(new String[0]), tableName));
+        }
+        return sql.toArray(new String[0]);
+    }
+    
     public List<String> getField() {
         return field;
     }
