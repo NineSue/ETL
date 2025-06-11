@@ -104,7 +104,8 @@ public class Scheduler {
                     break;
                 case OUTPUT:
                     logInfo("输出步骤 [" + stepId + "]: " + type);
-                    factory.runPlugin(type, input);
+                    step.withConfig("_input",input);
+                    factory.runPlugin(type,step.getConfig());
                     result = input;
                     logSuccess("输出完成");
                     break;

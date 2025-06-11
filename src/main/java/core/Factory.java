@@ -47,7 +47,7 @@ public class Factory {
         }
     }
 
-    public Object runPlugin(String type, Object data) {
+    public Object runPlugin(String type, Object... data) {
         Class<?> cls = reg.get(type);
         if (cls == null) {
             System.out.println("错，未找到插件类型: " + type);

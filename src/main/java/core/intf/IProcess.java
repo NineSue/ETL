@@ -3,5 +3,5 @@ package core.intf;
 import core.flowdata.RowSetTable;
 
 public interface IProcess {
-    RowSetTable deal(Object input);
+    RowSetTable deal(Object config);
 }

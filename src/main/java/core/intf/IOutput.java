@@ -1,5 +1,5 @@
 package core.intf;
 
 public interface IOutput {
-    void deal(Object data);
+    void deal(Object config);
 }

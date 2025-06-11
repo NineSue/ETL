@@ -34,7 +34,7 @@ public class Row extends ArrayList<Object> {
         sql.append(tableName).append("(");
         sql.append(String.join(", ", field)).append(") values (");
         List<String> values = this.stream()
-                                   .map(Object::toString)
+                .map(e -> "'" + e.toString() + "'")
                                    .collect(Collectors.toList());
         sql.append(String.join(", ", values)).append(");");
         return sql.toString();
