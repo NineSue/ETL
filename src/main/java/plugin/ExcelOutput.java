@@ -1,5 +1,4 @@
 package plugin;
-
 import anno.Output;
 import cn.hutool.poi.excel.ExcelUtil;
 import cn.hutool.poi.excel.ExcelWriter;
@@ -7,9 +6,7 @@ import core.intf.IOutput;
 import java.util.*;
 @Output(type = "excelOutput")
 public class ExcelOutput implements IOutput {
-
-    private List<Map<String, Object>> inputData;
-
+    private List<Map<String, Object>> inputData;//1输入数据
     public ExcelOutput() {
     }
     public void setInputData(List<Map<String, Object>> inputData) {

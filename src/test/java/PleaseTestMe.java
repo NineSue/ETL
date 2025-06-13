@@ -79,7 +79,7 @@ public class PleaseTestMe{
 
 
     @Test
-    public void test_excel_output_generation() {
+    public void test_exceloutput() {
         // 创建 ExcelOutput 实例
         ExcelOutput excelOutput = new ExcelOutput();
 
