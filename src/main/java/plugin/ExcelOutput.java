@@ -1,62 +1,94 @@
 package plugin;
+
 import anno.Output;
 import cn.hutool.poi.excel.ExcelUtil;
 import cn.hutool.poi.excel.ExcelWriter;
+import core.Channel;
+import core.flowdata.Row;
 import core.intf.IOutput;
 import java.util.*;
+
 @Output(type = "excelOutput")
 public class ExcelOutput implements IOutput {
-    private List<Map<String, Object>> inputData;//1输入数据
-    public ExcelOutput() {
-    }
-    public void setInputData(List<Map<String, Object>> inputData) {
-        this.inputData = inputData;
-    }
+    private Map<String, Object> config;
+    private ExcelWriter writer;
+    private String filename;
+    private String sheetname;
+    private boolean append;
+    private boolean hasHeader;
+    private List<Map<String, String>> fields;
+    private boolean headerWritten = false;
+    private List<String> fieldNames; // 存储字段名顺序
+
     @Override
-    public void deal(Object config) {
-        if (!(config instanceof Map)) {
-            throw new IllegalArgumentException("配置必须是一个 Map 对象");
-        }
-        Map<String, Object> configMap = (Map<String, Object>) config;
-        String filename = (String) configMap.get("filename");
-        String sheetname = (String) configMap.get("sheetname");
-        boolean append = convertToBoolean(configMap.get("append"), false);
-        boolean hasHeader = convertToBoolean(configMap.get("hasHeader"), true);
-        List<Map<String, String>> fields = (List<Map<String, String>>) configMap.get("fields");
+    public void init(Map<String, Object> cfg) {
+        this.config = cfg;
+        // 初始化配置参数
+        this.filename = (String) config.get("filename");
+        this.sheetname = (String) config.get("sheetname");
+        this.append = convertToBoolean(config.get("append"), false);
+        this.hasHeader = convertToBoolean(config.get("hasHeader"), true);
+        this.fields = (List<Map<String, String>>) config.get("fields");
+
+        // 验证必要配置
         if (filename == null || sheetname == null || fields == null || fields.isEmpty()) {
             throw new IllegalArgumentException("缺少必要的配置参数：filename、sheetname 或 fields");
         }
-        if (inputData == null || inputData.isEmpty()) {
-            throw new IllegalStateException("没有可用的输入数据");
+
+        // 提取字段名顺序
+        this.fieldNames = new ArrayList<>();
+        for (Map<String, String> field : fields) {
+            fieldNames.add(field.get("fieldName"));
         }
-        ExcelWriter writer;
+
+        // 初始化ExcelWriter
         if (append) {
             writer = ExcelUtil.getWriter(filename, sheetname);
         } else {
             writer = ExcelUtil.getWriter(filename);
             writer.setSheet(sheetname);
         }
+    }
 
+    @Override
+    public void consume(Channel<Row> input) throws Exception {
         try {
-            if (hasHeader) {
-                List<String> headerList = new ArrayList<>();
-                for (Map<String, String> field : fields) {
-                    headerList.add(field.get("fieldName"));
+            // 订阅Channel中的数据
+            input.subscribe(row -> {
+                synchronized (this) {
+                    try {
+                        // 如果需要表头且尚未写入
+                        if (hasHeader && !headerWritten) {
+                            writer.writeHeadRow(fieldNames);
+                            headerWritten = true;
+                        }
+
+                        // 直接写入行数据，因为Row是ArrayList<Object>
+                        // 假设字段顺序与Row中的数据顺序一致
+                        writer.writeRow(row);
+                    } catch (Exception e) {
+                        throw new RuntimeException("处理Excel数据时出错", e);
+                    }
                 }
-                writer.writeHeadRow(headerList);
-            }
-            for (Map<String, Object> rowData : inputData) {
-                List<Object> rowValues = new ArrayList<>();
-                for (Map<String, String> field : fields) {
-                    String fieldName = field.get("fieldName");
-                    rowValues.add(rowData.get(fieldName));
+            });
+
+            // 等待所有数据处理完成
+            input.onReceive(null, () -> {
+                synchronized (this) {
+                    if (writer != null) {
+                        writer.close();
+                        writer = null;
+                    }
                 }
-                writer.writeRow(rowValues);
+            });
+        } catch (Exception e) {
+            if (writer != null) {
+                writer.close();
             }
-        } finally {
-            writer.close();
+            throw e;
         }
     }
+
     private boolean convertToBoolean(Object value, boolean defaultValue) {
         if (value == null) {
             return defaultValue;
