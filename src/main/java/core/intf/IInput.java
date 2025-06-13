@@ -1,7 +1,11 @@
 package core.intf;
 
-import core.flowdata.RowSetTable;
+import core.Channel;
+import core.flowdata.Row;
+
+import java.util.Map;
 
 public interface IInput {
-    RowSetTable deal(Object config);
+    void init(Map<String,Object> cfg);
+    void start(Channel<Row> output) throws Exception;
 }

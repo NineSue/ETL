@@ -1,13 +1,22 @@
+import cn.hutool.core.io.FileUtil;
+import cn.hutool.json.JSONUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import core.Scheduler;
+import org.gugu.etl.StartUp;
 import org.junit.jupiter.api.Test;
-import plugin.ExcelOutput;
 import runtask.Step;
 import runtask.StepList;
 
-import java.util.*;
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collections;
 
 
-public class PleaseTestMe{
+
+public class PleaseTestMe {
+
     @Test
     public void test_csv_etl_flow() {
         Step input = new Step();
@@ -31,6 +40,9 @@ public class PleaseTestMe{
 
         new Scheduler(stepList).execute();
     }
+
+
+
     @Test
     public void test_http_etl_flow() {
         Step input = new Step();
@@ -56,6 +68,40 @@ public class PleaseTestMe{
 
     @Test
     public void test_json_etl_flow() {
+
+        // file 模式：从文件中读取数据
+        Step inputFile = new Step();
+        inputFile.withStepId(1)
+                .withDes("从文件读取包含 json 字段的文本")
+                .withDomain("input")
+                .withSubType("jsontext")
+                .withConfig("mode", "file")
+                .withConfig("filePath", "src/test/java/yh_json.txt");
+
+        // field 模式：从字段直接读取数据
+        Step inputField = new Step();
+        inputField.withStepId(1)
+                .withDes("从字段读取包含 json 字段的文本")
+                .withDomain("input")
+                .withSubType("jsontext")
+                .withConfig("mode", "field")
+                .withConfig("sourceField", "id,name,json_data\n" +
+                        "1,Alice,{\"age\":30,\"city\":\"New York\"}\n" +
+                        "2,Bob,{\"age\":25,\"city\":\"Los Angeles\"}\n" +
+                        "3,Charlie,{\"age\":35,\"city\":\"Chicago\"}")
+                .withConfig("jsonField","json_data")
+                .withConfig("delimiter", ",");
+
+        // url 模式（未实现）
+        Step inputUrl = new Step();
+        inputUrl.withStepId(1)
+                .withDes("从 URL 拉取数据")
+                .withDomain("input")
+                .withSubType("jsontext")
+                .withConfig("mode", "url")
+                .withConfig("url", "");
+
+
         Step input = new Step();
         input.withStepId(1)
                 .withDes("读取包含json字段的文本")
@@ -64,6 +110,7 @@ public class PleaseTestMe{
                 .withConfig("sourceType", "file")
                 .withConfig("filePath", "src/test/java/yh_json.txt");
 
+
         Step output = new Step();
         output.withStepId(2)
                 .withDes("输出到控制台")
@@ -71,73 +118,61 @@ public class PleaseTestMe{
                 .withSubType("console")
                 .withParentStepId(Collections.singletonList("1"));
 
-        StepList stepList = new StepList(Arrays.asList(input, output));
 
+        //file 模式
+        StepList stepList = new StepList(Arrays.asList(inputFile, output));
+        // field 模式
+        //StepList stepList = new StepList(Arrays.asList(inputField, output));
+        // 未来支持 url 模式
+        //StepList stepList = new StepList(Arrays.asList(inputUrl, output));
         new Scheduler(stepList).execute();
     }
-
-
-
+    
     @Test
-    public void test_exceloutput() {
-        // 创建 ExcelOutput 实例
-        ExcelOutput excelOutput = new ExcelOutput();
-
-        // 模拟输入数据
-        List<Map<String, Object>> inputData = new ArrayList<>();
-        Map<String, Object> row1 = new HashMap<>();
-        row1.put("name", "张三");
-        row1.put("age", 25);
-        row1.put("email", "zhangsan@example.com");
-
-        Map<String, Object> row2 = new HashMap<>();
-        row2.put("name", "李四");
-        row2.put("age", 30);
-        row2.put("email", "lisi@example.com");
-
-        inputData.add(row1);
-        inputData.add(row2);
-
-        // 设置输入数据
-        excelOutput.setInputData(inputData);
-
-        // 配置参数
-        Map<String, Object> config = new HashMap<>();
-        config.put("filename", "C:\\Users\\吴文喆\\Desktop\\新建文件夹\\output11.xlsx"); // 输出文件名
-        config.put("sheetname", "Sheet1");     // 工作表名称
-        config.put("append", false);           // 是否追加
-        config.put("hasHeader", true);         // 是否写入表头
-
-        // 字段配置
-        List<Map<String, String>> fields = new ArrayList<>();
-        Map<String, String> field1 = new HashMap<>();
-        field1.put("fieldName", "name");
-        field1.put("fieldAlias", "姓名");
-
-        Map<String, String> field2 = new HashMap<>();
-        field2.put("fieldName", "age");
-        field2.put("fieldAlias", "年龄");
-
-        Map<String, String> field3 = new HashMap<>();
-        field3.put("fieldName", "email");
-        field3.put("fieldAlias", "邮箱");
-
-        fields.add(field1);
-        fields.add(field2);
-        fields.add(field3);
-
-        config.put("fields", fields);
-
-        // 调用 deal 方法处理
-        try {
-            excelOutput.deal(config);
-            System.out.println("Excel 文件已成功生成！");
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.out.println("生成 Excel 文件时出错！");
-        }
+    public void testStepList() {
+        Step input = new Step();
+        input.withStepId(1)
+             .withDes("读取csv文件")
+             .withDomain("input")
+             .withSubType("csv")
+             .withConfig("filePath", "src/test/java/gugugu.csv")
+             .withConfig("delimiter", ",")
+             .withConfig("quoteChar", "\"")
+             .withConfig("hasHeader", true);
+        
+        Step output = new Step();
+        output.withStepId(2)
+              .withDes("输出到控制台")
+              .withDomain("output")
+              .withSubType("console")
+              .withParentStepId(Collections.singletonList("1"));
+        
+        Step output_1 = new Step();
+        output_1.withStepId(2)
+                .withDes("yYy")
+                .withDomain("output")
+                .withSubType("xxx")
+                .withParentStepId(Collections.singletonList("1"));
+        StepList sl = new StepList();
+        sl.addStep(input);
+        sl.addStep(output);
+        sl.updateStep(output_1);
+        sl.rmStep(input.getStepId()
+                       .toString());
+        System.out.println(sl);
+    }
+    
+    @Test
+    public void test_JSONToBean() throws JsonProcessingException {
+        File data = new File("C:\\Users\\白乃常\\.etl\\process_files\\a001.json");
+        StringBuffer sb = new StringBuffer();
+        FileUtil.readLines(data, StandardCharsets.UTF_8)
+                .forEach(sb::append);
+        String json = sb.toString();
+        ObjectMapper mapper = new ObjectMapper();
+        StepList response = mapper.readValue(json, StepList.class);
+        System.out.println(response);
     }
 }
-
 
 

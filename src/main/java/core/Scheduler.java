@@ -1,7 +1,9 @@
 package core;
 
 import core.flowdata.Row;
-import core.flowdata.RowSetTable;
+import core.intf.IInput;
+import core.intf.IOutput;
+import core.intf.IProcess;
 import runtask.Step;
 import runtask.StepList;
 
@@ -9,216 +11,198 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
+
 public class Scheduler {
     private static final String INPUT = "input";
     private static final String PROCESS = "process";
     private static final String OUTPUT = "output";
 
-    private final Factory factory = new Factory();
-    private final Map<Integer, Step> stepsById = new HashMap<>();
-    private final Map<Integer, List<Integer>> childrenMap = new HashMap<>();
-    private final Map<Integer, AtomicInteger> remainingParents = new ConcurrentHashMap<>();
-    private final BlockingQueue<Integer> readyQueue = new LinkedBlockingQueue<>();
-    private final Map<Integer, String> stepStatus = new ConcurrentHashMap<>();
-    private final Map<String, RowSetTable> inputCache = new ConcurrentHashMap<>();
-    private final Map<Integer, SharedRowSetTable> sharedDataMap = new ConcurrentHashMap<>();
-    private final Set<Integer> executedSteps = ConcurrentHashMap.newKeySet();
+    private final Factory fact=new Factory();
+    private final Map<Integer, Step> steps=new HashMap<>();
+    /*
+        CAS(Compare-And-Swap)=乐观锁+原子操作
+        CAS是CPU原生支持的无锁原子操作，依赖于汇编指令 lock cmpxchg，不会被线程打断
+        非阻塞，高性能，无需加锁，但存在CPU空转，例如多线程反复失败
+        java通过unsafe的JNI调用本地的C方法
+        CAS只能判断期望值，无法判断中间是否改过，故存在ABA问题，解决方法的话是通过引入AtomicStampedReference ，在比较的时候比较期望值与版本号
+     */
+    private final Map<Integer, AtomicInteger> remain=new ConcurrentHashMap<>();//剩余步骤
+    private final Map<Integer,List<Integer>> chilren=new HashMap<>();
+    private final BlockingQueue<Integer> ready=new LinkedBlockingQueue<>();
+    private final Set<Integer> done=ConcurrentHashMap.newKeySet();
+    private final CountDownLatch gate;
+    private final Map<Integer,Channel<Row>> inCh=new ConcurrentHashMap<>();
+    private final Map<Integer,Channel<Row>> outCh=new ConcurrentHashMap<>();
+    private final ExecutorService pool=Executors.newCachedThreadPool();
+    //可缓存线程池 ->  0, Integer.MAX_VALUE,60L, SECONDS,SynchronousQueue
 
-    private final ExecutorService threadPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-    private volatile boolean isRunning = true;
-    private final CountDownLatch doneLatch;
+    /*
+        1
+        通过遍历步骤列表建立:
+        ID->步骤,
+        ID->双向管道,
+        ID->上游步骤数。
 
-    public Scheduler(StepList stepList) {
-        logInfo("开始执行⌯>ᴗo⌯ .ᐟ.ᐟ");
-        for (Step step : stepList.getData()) {
-            stepsById.put(step.getStepId(), step);
-        }
-        this.doneLatch = new CountDownLatch(stepsById.size());
-        initDAG();
-    }
+        2
+        总步骤完成计数器gate，完成则递减，后续归0放行
 
-    private void initDAG() {
-        for (Step step : stepsById.values()) {
-            int id = step.getStepId();
-            List<String> parents = step.getParentStepId();
-            remainingParents.put(id, new AtomicInteger(parents.size()));
-            for (String pidStr : parents) {
-                int pid = Integer.parseInt(pidStr);
-                childrenMap.computeIfAbsent(pid, k -> new ArrayList<>()).add(id);
-            }
-        }
+        3
+        去看步骤列表谁是没有上游节点的，放入就绪队列，等待调度
 
-        for (Map.Entry<Integer, AtomicInteger> entry : remainingParents.entrySet()) {
-            if (entry.getValue().get() == 0) {
-                readyQueue.add(entry.getKey());
-            }
-        }
-    }
+        4
+        建立上游与下游映射，遍历每个步骤的上游步骤列表，将当前步骤ID添加到对应上游步骤的下游列表中
 
-    public void execute() {
-        try {
-            logInfo("工作流执行开始，总步骤数：" + stepsById.size());
-            while (isRunning && (!readyQueue.isEmpty() || doneLatch.getCount() > 0)) {
-                Integer stepId = readyQueue.poll(1, TimeUnit.SECONDS);
-                if (stepId == null) continue;
-                Step step = stepsById.get(stepId);
-                threadPool.submit(() -> runAndNotify(step));
-            }
-            doneLatch.await();
-            logInfo("所有步骤执行完成");
-        } catch (InterruptedException e) {
-            logError("工作流执行中断：" + e.getMessage());
-            Thread.currentThread().interrupt();
-        } finally {
-            threadPool.shutdownNow();
-            logInfo("线程池关闭(๑•̀ㅁ•́ฅ✧)");
-        }
-    }
 
-    private void runAndNotify(Step step) {
-        int stepId = step.getStepId();
 
-        if (!executedSteps.add(stepId)) {
-            logWarn("步骤 [" + stepId + "] 已执行，跳过重复执行");
-            return;
-        }
+    */
+    public Scheduler(StepList list){
+        System.out.println("开始执行-.-");
+        //1
+        list.getData().forEach(s->{
+            int id=s.getStepId();
+            steps.put(id,s);
+            inCh.put(id,new Channel<>());
+            outCh.put(id,new Channel<>());
+            remain.put(id,new AtomicInteger(s.getParentStepId().size()));
+        });
+        //2
+        gate=new CountDownLatch(steps.size());
+        //3
+        steps.keySet().forEach(id->{
+            if(remain.get(id).get()==0)
+                ready.add(id);
+        });
+        //4
+        steps.values().forEach(s->{
+            List<String> parentIds=s.getParentStepId();
+            int curStepId=s.getStepId();
 
-        try {
-            RowSetTable input = getInput(step);
-            String domain = step.getDomain();
-            String type = step.getSubType();
-            Object result = null;
-
-            switch (domain) {
-                case INPUT:
-                    String filePath = String.valueOf(step.getConfig().get("filePath"));
-                    logInfo("输入步骤 [" + stepId + "]: 读取 " + filePath);
-                    result = inputCache.computeIfAbsent(filePath,
-                            k -> (RowSetTable) factory.runPlugin(type, step.getConfig()));
-                    logSuccess("读取完成，记录数: " + ((RowSetTable) result).getRowList().size());
-                    break;
-                case PROCESS:
-                    logInfo("处理步骤 [" + stepId + "]: " + type);
-                    result = factory.runPlugin(type, input);
-                    logSuccess("处理完成");
-                    break;
-                case OUTPUT:
-                    logInfo("输出步骤 [" + stepId + "]: " + type);
-                    step.withConfig("_input",input);
-                    factory.runPlugin(type,step.getConfig());
-                    result = input;
-                    logSuccess("输出完成");
-                    break;
-                default:
-                    logError("未知步骤类型 [" + domain + "]，步骤 [" + stepId + "] 执行失败");
-                    stepStatus.put(stepId, "failed");
-                    return;
-            }
-
-            if (result instanceof RowSetTable) {
-                sharedDataMap.put(stepId, new SharedRowSetTable((RowSetTable) result));
-                stepStatus.put(stepId, "success");
-            } else {
-                logError("步骤 [" + stepId + "] 返回结果类型不正确");
-                stepStatus.put(stepId, "failed");
-            }
-
-        } catch (Exception e) {
-            logError("步骤 [" + stepId + "] 执行失败：" + e.getMessage());
-            stepStatus.put(stepId, "failed");
-        } finally {
-            notifyChildren(stepId);
-            doneLatch.countDown();
-        }
-    }
-
-    private void notifyChildren(int stepId) {
-        if (!"success".equals(stepStatus.get(stepId))) {
-            return;
-        }
-
-        List<Integer> children = childrenMap.getOrDefault(stepId, Collections.emptyList());
-        for (int child : children) {
-            AtomicInteger counter = remainingParents.get(child);
-            if (counter.decrementAndGet() == 0) {
-                List<String> parentIds = stepsById.get(child).getParentStepId();
-                boolean allParentsSuccess = parentIds.stream().allMatch(pidStr ->
-                        "success".equals(stepStatus.getOrDefault(Integer.parseInt(pidStr), "failed"))
-                );
-                if (allParentsSuccess) {
-                    readyQueue.add(child);
-                } else {
-                    logWarn("子步骤 [" + child + "] 有失败的父步骤，标记为 skipped");
-                    stepStatus.put(child, "skipped");
-                    doneLatch.countDown();
+            for(String p:parentIds){
+                int parentId=Integer.parseInt(p);
+                if(!chilren.containsKey(parentId)){
+                    chilren.put(parentId,new ArrayList<>());
                 }
+
+            List<Integer>childList=chilren.get(parentId);
+            childList.add(curStepId);
+            }
+        });
+    }
+
+    private void run(Step s){
+        int id=s.getStepId();
+        if(!remain.containsKey(id)||
+                !remain.get(id).compareAndSet(remain.get(id).get(),remain.get(id).get())){}
+        Factory f=fact;
+        try{
+            System.out.println("开始执行 step: " + id);
+        switch (s.getDomain()){
+            case INPUT:{
+                IInput in=f.getPlugin(s.getSubType(),IInput.class);
+                in.init(s.getConfig());
+                Channel<Row> out=outCh.get(id);
+                in.start(out);
+                out.close();
+                break;
+            }
+            case PROCESS:{
+                IProcess p=f.getPlugin(s.getSubType(),IProcess.class);
+                p.init(s.getConfig());
+                Channel<Row> in=inCh.get(id);
+                Channel<Row> out=outCh.get(id);
+                AtomicInteger cnt=new AtomicInteger(s.getParentStepId().size());
+
+//                s.getParentStepId().forEach(pId->{
+//                        outCh.get(Integer.parseInt(pId)).subscribe(r->{
+//                                try{
+//                                    in.publish(r);
+//                                } catch (InterruptedException e){}
+//                            });
+//                        }
+//                    );
+                for(String pIdStr:s.getParentStepId()){
+                    int pId=Integer.parseInt(pIdStr);
+                    outCh.get(pId).onReceive(r-> {
+                        try {
+                            in.publish(r);
+                        } catch (InterruptedException e) {
+                        }
+                    }, ()->{
+                        if(cnt.decrementAndGet()==0)
+                            in.close();
+                    });
+                }
+
+                p.process(in,out);
+                out.close();
+                break;
+            }
+            case OUTPUT:{
+                IOutput o=f.getPlugin(s.getSubType(),IOutput.class);
+                o.init(s.getConfig());
+                Channel<Row> in=inCh.get(id);
+//                s.getParentStepId().forEach(pId->
+//                        outCh.get(Integer.parseInt(pId)).subscribe(r ->{
+//                            try{
+//                                in.publish(r);
+//                            }catch (InterruptedException e){}
+//                        }));
+//                in.close();
+                AtomicInteger cnt=new AtomicInteger(s.getParentStepId().size());
+                for(String pIdStr:s.getParentStepId()){
+                    int pId=Integer.parseInt(pIdStr);
+                    outCh.get(pId).onReceive(r-> {
+                        try {
+                            in.publish(r);
+                        } catch (InterruptedException e) {
+                        }
+                    }, ()->{
+                        if(cnt.decrementAndGet()==0)
+                            in.close();
+                    });
+                }
+
+                o.consume(in);
+                break;
             }
         }
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        finally {
+            chilren.getOrDefault(id,Collections.emptyList())
+                    .forEach(c->{
+                        if(remain.get(c).decrementAndGet()==0)
+                            ready.add(c);
+                    });
+            gate.countDown();
+        }
+        System.out.println("当前剩余 gate: " + gate.getCount());
     }
 
-    private RowSetTable getInput(Step step) {
-        if (INPUT.equals(step.getDomain())) {
-            return new RowSetTable(Collections.emptyList());
-        }
-
-        List<String> parents = step.getParentStepId();
-        if (parents.isEmpty()) {
-            return new RowSetTable(Collections.emptyList());
-        }
-
-        RowSetTable merged = null;
-        for (String pidStr : parents) {
-            int pid = Integer.parseInt(pidStr);
-            SharedRowSetTable shared = sharedDataMap.get(pid);
-            if (shared == null) continue;
-
-            if (merged == null) {
-                merged = new RowSetTable(shared.getField());
+//    public void execute() throws InterruptedException {
+//        while (!ready.isEmpty()) {
+//            Integer stepId = ready.poll();
+//            if (stepId != null && steps.containsKey(stepId)) {
+//                Step step = steps.get(stepId);
+//                pool.submit(() -> run(step));
+//            }
+//        }
+//        gate.await();
+//        pool.shutdown();
+//    }
+    public void execute() throws InterruptedException {
+        while (gate.getCount() > 0) {
+            Integer stepId = ready.poll(1, TimeUnit.SECONDS); // 等待新 step
+            if (stepId != null && steps.containsKey(stepId)) {
+                Step step = steps.get(stepId);
+                pool.submit(() -> run(step));
             }
-            merged.getRowList().addAll(shared.getRowList());
         }
-
-        return merged != null ? merged : new RowSetTable(Collections.emptyList());
+        gate.await();
+        pool.shutdown();
     }
-
-    public static class SharedRowSetTable {
-        private final List<Row> rowList;
-        private final List<String> field;
-
-        public SharedRowSetTable(RowSetTable origin) {
-            this.rowList = Collections.unmodifiableList(origin.getRowList());
-            this.field = Collections.unmodifiableList(origin.getField());
-        }
-
-        public List<Row> getRowList() {
-            return rowList;
-        }
-
-        public List<String> getField() {
-            return field;
-        }
-    }
-
-    // 日志颜色常量
-    private static final String COLOR_RESET = "\u001B[0m";
-    private static final String COLOR_BLUE = "\u001B[34m";
-    private static final String COLOR_YELLOW = "\u001B[33m";
-    private static final String COLOR_GREEN = "\u001B[32m";
-    private static final String COLOR_RED = "\u001B[31m";
-
-    private void logInfo(String msg) {
-        System.out.println(COLOR_BLUE + "[INFO ] " + msg + COLOR_RESET);
-    }
-
-    private void logSuccess(String msg) {
-        System.out.println(COLOR_GREEN + "[SUCCESS] " + msg + COLOR_RESET);
-    }
-
-    private void logWarn(String msg) {
-        System.out.println(COLOR_YELLOW + "[WARN ] " + msg + COLOR_RESET);
-    }
-
-    private void logError(String msg) {
-        System.err.println(COLOR_RED + "[ERROR] " + msg + COLOR_RESET);
+    static {
+        Checker.run("plugin", "anno");
     }
 }

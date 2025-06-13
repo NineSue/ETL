@@ -1,10 +1,9 @@
-package org.gugu.etl;
+package org.gugu.etl.flowdata;
 
 import core.flowdata.*;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
-import java.util.Comparator;
 
 public class RowSetTableTest {
     @Test
