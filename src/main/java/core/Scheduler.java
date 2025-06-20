@@ -23,7 +23,7 @@ public class Scheduler {
     private final CountDownLatch gate;
     private final Map<Integer, Channel> inCh = new ConcurrentHashMap<>();
     private final Map<Integer, List<Channel>> outCh = new ConcurrentHashMap<>();
-    private final ExecutorService pool = Executors.newCachedThreadPool(); // 🔥 公共线程池
+    private final ExecutorService pool = ThreadPoolManger.getThreadPool(); // 🔥 公共线程池
     private final List<Integer> inputSteps = new ArrayList<>();
     private final List<Integer> processSteps = new ArrayList<>();
     private final List<Integer> outputSteps = new ArrayList<>();

@@ -27,7 +27,7 @@ public class Row extends ArrayList<Object> {
     }
 
     public  RowSetTable RowChangeTable() {
-        List<String> field = this.stream().map(e -> e.toString()).collect(Collectors.toList());
+        List<String> field = this.stream().map(Object::toString).collect(Collectors.toList());
         return new RowSetTable(field);
     }
 
@@ -65,5 +65,15 @@ public class Row extends ArrayList<Object> {
                                    .collect(Collectors.toList());
         sql.append(String.join(", ", values)).append(");");
         return sql.toString();
+    }
+    
+    @Override
+    public String toString() {
+        final StringBuffer sb = new StringBuffer("Row->");
+        List<String> collect = this.stream()
+                                   .map(Object::toString)
+                                   .collect(Collectors.toList());
+        sb.append(String.join(", ", collect));
+        return sb.toString();
     }
 }
