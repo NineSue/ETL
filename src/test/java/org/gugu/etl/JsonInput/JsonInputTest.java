@@ -30,10 +30,11 @@ public class JsonInputTest {
         return mappings;
     }
 
-    /**
+   /**
      * 测试 JsonInput 插件的文件模式。
      * 从指定文件中读取纯 JSON 数据，并根据 JSONPath 提取字段。
      */
+
     @Test
     public void testJsonInputFileMode() throws InterruptedException {
         Log.info("JsonInputTest", "--- Running testJsonInputFileMode ---");
@@ -61,7 +62,8 @@ public class JsonInputTest {
         Log.info("JsonInputTest", "--- Finished testJsonInputFileMode ---");
     }
 
-    /**
+
+    /*
      * 测试 JsonInput 插件的字符串模式。
      * 从 Step 配置的 sourceString 中直接读取纯 JSON 数据，并根据 JSONPath 提取字段。
      */
@@ -106,38 +108,37 @@ public class JsonInputTest {
     }
 
     /**
-     * 为 JsonInput 插件的 URL 模式预留的测试方法。
-     * 此方法目前为空，待 URL 模式实现后补充。
+     * JsonInput 插件的 URL 模式的测试方法。
      */
+
     @Test
     public void testJsonInputUrlMode() throws InterruptedException {
-        Log.info("JsonInputTest", "--- Running testJsonInputUrlMode (Not Implemented Yet) ---");
+        Log.info("JsonInputTest", "--- Running testJsonInputUrlMode ---");
 
-        // TODO: 在 JsonInput 插件实现 'url' 模式后，在此处添加相应的测试逻辑。
-        // 示例配置:
-        // List<Map<String, String>> mappings = new ArrayList<>();
-        // mappings.add(new HashMap<String, String>() {{ put("outputName", "id"); put("jsonPath", "id"); }});
-        // mappings.add(new HashMap<String, String>() {{ put("outputName", "name"); put("jsonPath", "name"); }});
-        //
-        // Step jsonInputUrlStep = new Step();
-        // jsonInputUrlStep.withStepId(1)
-        //         .withDes("从 URL 拉取 JSON 数据")
-        //         .withDomain("input")
-        //         .withSubType("json")
-        //         .withConfig("mode", "url")
-        //         .withConfig("url", "http://your-json-api-url.com/data")
-        //         .withConfig("jsonRootPath", "$.results") // 假设 API 返回的数据在 'results' 键下
-        //         .withConfig("fieldMappings", mappings);
-        //
-        // Step consoleOutputStep = new Step();
-        // consoleOutputStep.withStepId(2)
-        //         .withDes("输出到控制台")
-        //         .withDomain("output")
-        //         .withSubType("console")
-        //         .withParentStepId(Collections.singletonList("1"));
-        //
-        // StepList stepList = new StepList(Arrays.asList(jsonInputUrlStep, consoleOutputStep));
-        // new Scheduler(stepList).execute();
+        List<Map<String, String>> mappings = new ArrayList<>();
+        mappings.add(new HashMap<String, String>() {{ put("outputName", "id"); put("jsonPath", "id"); }});
+        mappings.add(new HashMap<String, String>() {{ put("outputName", "name"); put("jsonPath", "name"); }});
+        mappings.add(new HashMap<String, String>() {{ put("outputName", "email"); put("jsonPath", "email"); }});
+
+        Step jsonInputUrlStep = new Step();
+        jsonInputUrlStep.withStepId(1)
+                .withDes("从 URL 拉取 JSON 数据")
+                .withDomain("input")
+                .withSubType("json")
+                .withConfig("mode", "url")
+                .withConfig("url", "https://jsonplaceholder.typicode.com/users")
+                .withConfig("jsonRootPath", "")
+                .withConfig("fieldMappings", mappings);
+
+        Step consoleOutputStep = new Step();
+        consoleOutputStep.withStepId(2)
+                .withDes("输出到控制台")
+                .withDomain("output")
+                .withSubType("console")
+                .withParentStepId(Collections.singletonList("1"));
+
+        StepList stepList = new StepList(Arrays.asList(jsonInputUrlStep, consoleOutputStep));
+        new Scheduler(stepList).execute();
 
         Log.info("JsonInputTest", "--- Finished testJsonInputUrlMode ---");
     }
