@@ -9,8 +9,12 @@ import core.intf.IInput;
 import tool.Log;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Input(type = "configfile")
 public class ConfigFileInput implements IInput {
@@ -36,43 +40,13 @@ public class ConfigFileInput implements IInput {
         }
 
         try {
-            List<String> lines = FileUtil.readLines(filePath, StandardCharsets.UTF_8);
-            if (lines.isEmpty()) {
-                Log.warn("ConfigFileInput", "Config file is empty.");
+            if (filePath.endsWith(".properties")) {
+                processPropertiesFile(outputs);
+            } else if (filePath.endsWith(".ini")) {
+                processIniFile(outputs);
+            } else {
+                Log.error("ConfigFileInput", "Unsupported file type. Only .properties and .ini files are supported.");
                 return;
-            }
-
-            // 假设第一行为表头
-            String headerLine = lines.get(0);
-            String[] headers = headerLine.split(",");
-            List<String> headerList = new ArrayList<>();
-            for (String header : headers) {
-                headerList.add(header.trim());
-            }
-            RowSetTable headerTable = new RowSetTable(headerList);
-
-            // 设置表头到所有输出通道
-            for (Channel output : outputs) {
-                output.setHeader(headerTable);
-            }
-            Log.header("ConfigFileInput", String.join(", ", headerList));
-
-            // 处理数据行
-            for (int i = 1; i < lines.size(); i++) {
-                String line = lines.get(i).trim();
-                if (line.isEmpty()) continue;
-
-                String[] values = line.split(",");
-                Row row = new Row();
-                for (String value : values) {
-                    row.add(value.trim());
-                }
-
-                // 发布数据到所有输出通道
-                for (Channel output : outputs) {
-                    output.publish(row);
-                }
-                Log.data("ConfigFileInput", row.toString());
             }
         } catch (Exception e) {
             Log.error("ConfigFileInput", "Error reading config file: " + e.getMessage());
@@ -84,5 +58,99 @@ public class ConfigFileInput implements IInput {
             }
             Log.info("ConfigFileInput", "All output channels closed");
         }
+    }
+
+    private void processPropertiesFile(List<Channel> outputs) throws Exception {
+        Properties properties = new Properties();
+        properties.load(FileUtil.getInputStream(filePath));
+
+        List<String> headers = new ArrayList<>();
+        headers.add("key");
+        headers.add("value");
+        RowSetTable headerTable = new RowSetTable(headers);
+
+        // 设置表头到所有输出通道
+        for (Channel output : outputs) {
+            output.setHeader(headerTable);
+        }
+        Log.header("ConfigFileInput", String.join(", ", headers));
+
+        // 处理数据行
+        for (Map.Entry<Object, Object> entry : properties.entrySet()) {
+            Row row = new Row();
+            row.add(entry.getKey().toString());
+            row.add(entry.getValue().toString());
+
+            // 发布数据到所有输出通道
+            for (Channel output : outputs) {
+                output.publish(row);
+            }
+            Log.data("ConfigFileInput", row.toString());
+        }
+    }
+
+    private void processIniFile(List<Channel> outputs) throws Exception {
+        List<String> lines = FileUtil.readLines(filePath, StandardCharsets.UTF_8);
+        Map<String, Map<String, String>> iniData = parseIni(lines);
+
+        List<String> headers = new ArrayList<>();
+        headers.add("section");
+        headers.add("key");
+        headers.add("value");
+        RowSetTable headerTable = new RowSetTable(headers);
+
+        // 设置表头到所有输出通道
+        for (Channel output : outputs) {
+            output.setHeader(headerTable);
+        }
+        Log.header("ConfigFileInput", String.join(", ", headers));
+
+        // 处理数据行
+        for (Map.Entry<String, Map<String, String>> sectionEntry : iniData.entrySet()) {
+            String section = sectionEntry.getKey();
+            Map<String, String> sectionData = sectionEntry.getValue();
+            for (Map.Entry<String, String> entry : sectionData.entrySet()) {
+                Row row = new Row();
+                row.add(section);
+                row.add(entry.getKey());
+                row.add(entry.getValue());
+
+                // 发布数据到所有输出通道
+                for (Channel output : outputs) {
+                    output.publish(row);
+                }
+                Log.data("ConfigFileInput", row.toString());
+            }
+        }
+    }
+
+    private Map<String, Map<String, String>> parseIni(List<String> lines) {
+        Map<String, Map<String, String>> iniData = new HashMap<>();
+        String currentSection = null;
+        Pattern sectionPattern = Pattern.compile("\\[(.*)\\]");
+        Pattern keyValuePattern = Pattern.compile("(.*)=(.*)");
+
+        for (String line : lines) {
+            line = line.trim();
+            if (line.isEmpty() || line.startsWith(";")) {
+                continue;
+            }
+
+            Matcher sectionMatcher = sectionPattern.matcher(line);
+            if (sectionMatcher.matches()) {
+                currentSection = sectionMatcher.group(1);
+                iniData.putIfAbsent(currentSection, new HashMap<>());
+            } else {
+                Matcher keyValueMatcher = keyValuePattern.matcher(line);
+                if (keyValueMatcher.matches()) {
+                    String key = keyValueMatcher.group(1).trim();
+                    String value = keyValueMatcher.group(2).trim();
+                    if (currentSection != null) {
+                        iniData.get(currentSection).put(key, value);
+                    }
+                }
+            }
+        }
+        return iniData;
     }
 }
