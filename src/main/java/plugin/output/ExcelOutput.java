@@ -1,4 +1,4 @@
-package plugin;
+package plugin.output;
 
 import anno.Output;
 import cn.hutool.poi.excel.ExcelUtil;
@@ -51,7 +51,8 @@ public class ExcelOutput implements IOutput {
     }
 
     @Override
-    public void consume(Channel<Row> input) throws Exception {
+    public void consume(Channel input) throws Exception {
+
         try {
             input.subscribe(row -> {
                 synchronized (this) {
@@ -62,7 +63,7 @@ public class ExcelOutput implements IOutput {
                         }
                         Future<?> future = executorService.submit(() -> {
                             try {
-                                writer.writeRow(row);
+                                writer.writeRow((Iterable<?>) row);
                             } catch (Exception e) {
                                 throw new RuntimeException("处理Excel数据时出错", e);
                             }
@@ -97,6 +98,7 @@ public class ExcelOutput implements IOutput {
             throw e;
         }
     }
+
 
     private boolean convertToBoolean(Object value, boolean defaultValue) {
         if (value == null) {
