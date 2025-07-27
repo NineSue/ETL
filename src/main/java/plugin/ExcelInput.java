@@ -1,6 +1,7 @@
 package plugin;
 
 import anno.Input;
+import core.Channel;
 import core.flowdata.Row;
 import core.flowdata.RowSetTable;
 import core.intf.IInput;
@@ -29,7 +30,7 @@ public class ExcelInput implements IInput {
      *
      * @return RowSetTable 包含 Excel 数据的表格对象，失败时返回空对象
      */
-    @Override
+
     public RowSetTable deal(Object config) {
         // 参数校验
         if (!(config instanceof Map)) {
@@ -174,5 +175,15 @@ public class ExcelInput implements IInput {
         }
 
         return trimValues && value != null ? value.trim() : value;
+    }
+
+    @Override
+    public void init(Map<String, Object> cfg) {
+
+    }
+
+    @Override
+    public void start(Channel<Row> output) throws Exception {
+
     }
 }
