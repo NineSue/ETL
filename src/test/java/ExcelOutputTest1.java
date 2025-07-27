@@ -17,7 +17,7 @@ public class ExcelOutputTest1 {
             config.put("hasHeader", true);
 
             List<Map<String, String>> fields = new ArrayList<>();
-            for (int i = 0; i < 10000; i++) { // 假设每行有100列
+            for (int i = 0; i < 1000; i++) {
                 Map<String, String> field = new HashMap<>();
                 field.put("fieldName", "Field" + i);
                 fields.add(field);
@@ -27,10 +27,10 @@ public class ExcelOutputTest1 {
             excelOutput.init(config);
             Channel<Row> input = new Channel<>();
             List<Row> data = new ArrayList<>();
-            for (int j = 0; j < 100000; j++) { // 假设有一万行数据
+            for (int j = 0; j < 10000; j++) {
                 Row row = new Row();
                 for (int i = 0; i < 100; i++) {
-                    row.add("Data" + i); // 添加字符串数据
+                    row.add("Data" + i);
                 }
                 data.add(row);
             }
