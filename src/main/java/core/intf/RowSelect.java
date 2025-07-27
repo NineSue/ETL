@@ -1,5 +1,4 @@
 package core.intf;
-
 import java.util.List;
 
 public interface RowSelect {

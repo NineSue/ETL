@@ -1,8 +1,7 @@
-package org.gugu.etl.flowdata;
+package org.gugu.etl.Row;
 
 import core.flowdata.*;
 import org.junit.jupiter.api.Test;
-
 import java.util.Arrays;
 
 public class RowSetTableTest {

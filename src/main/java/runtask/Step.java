@@ -1,7 +1,6 @@
 package runtask;
 
 import core.flowdata.RowSetTable;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -13,7 +12,6 @@ public class Step {
     protected HashMap<String, Object> config = new HashMap<>();//具体配置
     protected String domain;//主类型
     protected List<String> parentStepId = new ArrayList<>();//上游ID
-    protected List<String> childStepId = new ArrayList<>();//下游ID
     protected RowSetTable subData;
     
     public void setStepId(Integer stepId) {
@@ -44,17 +42,12 @@ public class Step {
         this.parentStepId = parentStepId;
     }
     
-    public void setChildStepId(List<String> childStepId) {
-        this.childStepId = childStepId;
-    }
-    
     public Step(Integer stepId, String description, String subType, String domain, List<String> parentStepId, List<String> childStepId, HashMap<String, Object> config) {
         this.stepId = stepId;
         this.description = description;
         this.subType = subType;
         this.domain = domain;
         this.parentStepId = parentStepId;
-        this.childStepId = childStepId;
         this.config = config;
     }
     
@@ -125,15 +118,6 @@ public class Step {
     
     public Step withConfig(HashMap<String, Object> config) {
         this.config = config != null ? config : new HashMap<>();
-        return this;
-    }
-    
-    public List<String> getChildStepId() {
-        return childStepId;
-    }
-    
-    public Step withChildStepId(List<String> childStepId) {
-        this.childStepId = childStepId;
         return this;
     }
     

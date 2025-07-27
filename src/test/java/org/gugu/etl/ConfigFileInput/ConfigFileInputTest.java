@@ -1,3 +1,5 @@
+package org.gugu.etl.ConfigFileInput;
+
 import core.Scheduler;
 import org.junit.jupiter.api.Test;
 import runtask.Step;
@@ -5,19 +7,16 @@ import runtask.StepList;
 import java.util.Arrays;
 import java.util.Collections;
 
-public class ExcelInputTest {
+public class ConfigFileInputTest {
 
     @Test
-    public void test_excel_with_header() {
+    public void testPropertiesInput() throws InterruptedException {
         Step input = new Step();
         input.withStepId(1)
-                .withDes("读取带表头的Excel文件")
+                .withDes("读取properties文件")
                 .withDomain("input")
-                .withSubType("excel")
-                .withConfig("filePath", "src/test/java/orange.xlsx")
-                .withConfig("sheetName", "StandardData")
-                .withConfig("hasHeader", true)
-                .withConfig("startRow", 2);
+                .withSubType("configfile")
+                .withConfig("filePath", "/Users/yuhan/Desktop/Yuhan/ideaProject/ETL/src/test/java/org/gugu/etl/ConfigFileInput/yh.properties");
 
         Step output = new Step();
         output.withStepId(2)
@@ -30,17 +29,14 @@ public class ExcelInputTest {
         new Scheduler(stepList).execute();
     }
 
-    // 测试无表头的Excel文件
     @Test
-    public void test_excel_without_header() {
+    public void testIniInput() throws InterruptedException {
         Step input = new Step();
         input.withStepId(1)
-                .withDes("读取不带表头的Excel文件")
+                .withDes("读取ini文件")
                 .withDomain("input")
-                .withSubType("excel")
-                .withConfig("filePath", "src/test/java/orange.xlsx")
-                .withConfig("sheetName", "NoHeaderData")
-                .withConfig("hasHeader", false);
+                .withSubType("configfile")
+                .withConfig("filePath", "/Users/yuhan/Desktop/Yuhan/ideaProject/ETL/src/test/java/org/gugu/etl/ConfigFileInput/yh.ini");
 
         Step output = new Step();
         output.withStepId(2)

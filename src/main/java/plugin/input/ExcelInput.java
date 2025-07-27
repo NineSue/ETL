@@ -1,187 +1,244 @@
-package plugin.input;
-
-import anno.Input;
+package plugin.input; // Changed package name to reflect its type
+import anno.Process; // Changed annotation type
 import core.Channel;
 import core.flowdata.Row;
-import core.intf.IInput;
-
-import java.io.*;
-import java.util.*;
-
+import core.flowdata.RowSetTable;
+import core.intf.IProcess; // Implemented IProcess interface
+import tool.Log;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
-/**
- * Excel 输入插件，用于读取 Excel 文件并通过 Channel 发送数据。
- */
-@Input(type="excel")
-public class ExcelInput implements IInput {
-    private String filePath;
+import java.io.File;
+import java.io.FileInputStream;
+import java.util.*;
+
+//Done
+@Process(type = "excel") // Changed annotation
+public class ExcelInput implements IProcess { // Implemented IProcess
+    private String filePath;             // Static path (if configured, expects upstream to provide a trigger signal)
+    private String fileNameField;        // Dynamic path field name
     private String sheetName;
-    private boolean hasHeader;
-    private int startRow;
+    private boolean headerRow;
+    private boolean includeFilenameInOutput;
+    private String rowNumField;
     private boolean nullToEmpty;
     private boolean trimValues;
 
+    // Removed redundant 'outputChannels' field as 'outputs' is passed directly to process and readExcelFile.
+
     @Override
     public void init(Map<String, Object> cfg) {
-        // 初始化配置参数
         this.filePath = (String) cfg.get("filePath");
-        this.sheetName = (String) cfg.get("sheetName");
-        this.hasHeader = (boolean) cfg.getOrDefault("hasHeader", true);
-        this.startRow = (int) cfg.getOrDefault("startRow", hasHeader ? 1 : 0);
-        this.nullToEmpty = (boolean) cfg.getOrDefault("nullToEmpty", true);
-        this.trimValues = (boolean) cfg.getOrDefault("trimValues", true);
+        this.fileNameField = (String) cfg.get("fileNameField");
+        this.sheetName = (String) cfg.getOrDefault("sheetName", "");
+        this.headerRow = (Boolean) cfg.getOrDefault("headerRow", true);
+        this.includeFilenameInOutput = (Boolean) cfg.getOrDefault("includeFilenameInOutput", false);
+        this.rowNumField = (String) cfg.getOrDefault("rowNumField", null);
+        this.nullToEmpty = (Boolean) cfg.getOrDefault("nullToEmpty", true);
+        this.trimValues = (Boolean) cfg.getOrDefault("trimValues", true);
 
-        // 参数校验
-        if (filePath == null || filePath.isEmpty()) {
-            throw new IllegalArgumentException("必须指定文件路径(filePath)");
-        }
-        if (hasHeader && startRow ==0) {
-            System.err.println("警告：有头且开始行是0,自动修正");
-            this.startRow = 1;
+        // Ensure at least one path configuration method is specified
+        if ((filePath == null || filePath.isEmpty()) && (fileNameField == null || fileNameField.isEmpty())) {
+            throw new IllegalArgumentException("Must specify filePath or fileNameField");
         }
     }
 
     @Override
-    public void start(Channel<Row> output) throws Exception {
-        try {
-            // 创建文件对象并验证存在性
-            File file = new File(filePath);
-            if (!file.exists()) {
-                throw new IllegalArgumentException("文件不存在: " + filePath);
-            }
+    public void process(Channel input, List<Channel> outputs) throws Exception { // Changed method signature
+        if (fileNameField != null && !fileNameField.isEmpty()) {
+            // Dynamic path mode: Consume file paths from the input channel
+            Log.info("ExcelInput", "Dynamic path mode: Waiting for upstream to provide file paths...");
+            input.onReceive(rowObj -> {
+                if (!(rowObj instanceof Row)) {
+                    Log.warn("ExcelInput", "Upstream data type is not Row, skipping.");
+                    return;
+                }
+                Row row = (Row) rowObj;
 
-            // 打开工作簿和工作表
-            try (FileInputStream fis = new FileInputStream(file);
-                 Workbook workbook = new XSSFWorkbook(fis)) {
-
-                Sheet sheet = getSheet(workbook, sheetName);
-                if (sheet == null) {
+                // Get header from the input channel
+                RowSetTable inputHeader = input.getHeader();
+                if (inputHeader == null) {
+                    Log.error("ExcelInput", "Input channel's Header is not set, cannot get fileNameField.");
                     return;
                 }
 
-                // 处理表头
-                List<String> headers = new ArrayList<>();
-                processHeader(sheet, headers);
-
-                // 如果没有表头，生成默认列名
-                if (!hasHeader) {
-                    generateDefaultHeaders(sheet, headers);
+                int idx = inputHeader.getFieldIndex(fileNameField);
+                if (idx == -1) {
+                    Log.error("ExcelInput", "Field " + fileNameField + " does not exist in upstream Header.");
+                    return;
                 }
 
-                Row headerRow=new Row();
-                for(String header:headers){
-                    headerRow.add(header);
+                Object val = row.get(idx);
+                if (val == null) {
+                    Log.warn("ExcelInput", "Field " + fileNameField + " is null, skipping.");
+                    return;
                 }
-                output.publish(headerRow);
-
-                // 创建RowSetTable并处理数据行
-                for (int i = startRow; i <= sheet.getLastRowNum(); i++) {
-                    org.apache.poi.ss.usermodel.Row excelRow = sheet.getRow(i);
-                    if (excelRow != null) {
-                        Row tableRow = new Row();
-                        for (int j = 0; j < headers.size(); j++) {
-                            Cell cell = excelRow.getCell(j);
-                            String value = getCellValueAsString(cell, workbook, nullToEmpty, trimValues);
-                            tableRow.add(value);
-                        }
-                        output.publish(tableRow); // 通过 Channel 发送数据
-                    }
+                String path = val.toString();
+                try {
+                    readExcelFile(path, outputs); // Pass the actual list of output channels to the read method
+                } catch (Exception e) {
+                    Log.error("ExcelInput", "Failed to read Excel: " + e.getMessage());
                 }
+            }, () -> {
+                // When upstream channel closes, close all downstream output channels
+                Log.info("ExcelInput", "Upstream channel closed, ExcelInput finished dynamic path reading.");
+                for (Channel out : outputs) {
+                    out.close();
+                }
+            });
+        } else {
+            // Static path mode: Read the file directly once
+            // Processing a static file in IProcess means it doesn't depend on upstream data,
+            // or upstream only provides a trigger signal. Here we read directly.
+            Log.info("ExcelInput", "Static path mode: Reading file directly " + filePath);
+            readExcelFile(filePath, outputs); // Pass the actual list of output channels to the read method
+            // In static mode, close output channels immediately after reading is complete
+            for (Channel out : outputs) {
+                out.close();
             }
-
-            output.close(); // 数据发送完毕后关闭 Channel
-        } catch (IOException e) {
-            System.err.println("读取Excel文件失败: " + e.getMessage());
-            output.close();
-            throw e;
         }
     }
 
-    /**
-     * 获取工作表，根据名称或默认第一个
-     */
-    private Sheet getSheet(Workbook workbook, String sheetName) {
-        if (sheetName != null && !sheetName.isEmpty()) {
-            Sheet sheet = workbook.getSheet(sheetName);
+    // readExcelFile method needs to accept List<Channel>
+    private void readExcelFile(String path, List<Channel> outputs) throws Exception {
+        File file = new File(path);
+        if (!file.exists()) {
+            Log.error("ExcelInput", "File does not exist: " + path);
+            return;
+        }
+
+        Log.info("ExcelInput", "Reading file: " + path);
+        try (FileInputStream fis = new FileInputStream(file);
+             Workbook workbook = new XSSFWorkbook(fis)) {
+
+            Sheet sheet = getSheet(workbook);
             if (sheet == null) {
-                System.err.println("工作表 '" + sheetName + "' 不存在");
-                return null;
+                Log.warn("ExcelInput", "Worksheet does not exist, file: " + path);
+                return;
             }
-            return sheet;
-        }
-        return workbook.getSheetAt(0); // 默认第一个工作表
-    }
 
-    /**
-     * 处理表头行
-     */
-    private void processHeader(Sheet sheet, List<String> headers) {
-        if (hasHeader) {
-            org.apache.poi.ss.usermodel.Row headerRow = sheet.getRow(0);
-            if (headerRow != null) {
-                for (int i = 0; i < headerRow.getLastCellNum(); i++) {
-                    Cell cell = headerRow.getCell(i);
-                    String headerName = getCellValueAsString(cell, null, false, true);
-                    headers.add(headerName != null ? headerName : "Column" + (i + 1));
+            // Build header
+            List<String> headers = headerRow ? extractHeader(sheet) : generateDefaultHeaders(sheet);
+            if (rowNumField != null && !rowNumField.isEmpty()) {
+                headers.add(rowNumField);
+            }
+            if (includeFilenameInOutput) {
+                headers.add("filename");
+            }
+            RowSetTable headerTable = new RowSetTable(headers);
+
+            // Set header for all output channels
+            for (Channel out : outputs) {
+                out.setHeader(headerTable);
+            }
+            Log.header("ExcelInput", String.join(", ", headers));
+
+            int startRowIndex = headerRow ? 1 : 0;
+            for (int i = startRowIndex; i <= sheet.getLastRowNum(); i++) {
+                org.apache.poi.ss.usermodel.Row excelRow = sheet.getRow(i);
+                if (excelRow == null) continue;
+
+                Row outRow = new Row();
+                // Determine the number of actual data columns based on headers, excluding special fields
+                int dataColumnCount = headers.size();
+                if (includeFilenameInOutput) {
+                    dataColumnCount--;
                 }
+                if (rowNumField != null && !rowNumField.isEmpty()) {
+                    dataColumnCount--;
+                }
+
+                for (int c = 0; c < dataColumnCount; c++) {
+                    Cell cell = excelRow.getCell(c);
+                    String val = getCellString(cell);
+                    outRow.add(val);
+                }
+
+                // Add row number field if configured
+                if (rowNumField != null && !rowNumField.isEmpty()) {
+                    outRow.add(String.valueOf(i + 1));
+                }
+                // Add filename field if configured
+                if (includeFilenameInOutput) {
+                    outRow.add(file.getName());
+                }
+
+                // Publish to all output channels
+                for (Channel out : outputs) {
+                    out.publish(outRow);
+                }
+                Log.data("ExcelInput", outRow.toString());
             }
         }
     }
 
-    /**
-     * 生成默认表头（当没有表头时）
-     */
-    private void generateDefaultHeaders(Sheet sheet, List<String> headers) {
+    // The following helper methods remain unchanged
+    private Sheet getSheet(Workbook workbook) {
+        if (sheetName != null && !sheetName.isEmpty()) {
+            return workbook.getSheet(sheetName);
+        }
+        return workbook.getSheetAt(0);
+    }
+
+    private List<String> extractHeader(Sheet sheet) {
+        List<String> headers = new ArrayList<>();
+        org.apache.poi.ss.usermodel.Row headerRow = sheet.getRow(0);
+        if (headerRow == null) return headers;
+        for (int i = 0; i < headerRow.getLastCellNum(); i++) {
+            Cell cell = headerRow.getCell(i);
+            String val = getCellString(cell);
+            headers.add(val == null || val.isEmpty() ? "Column" + (i + 1) : val);
+        }
+        return headers;
+    }
+
+    private List<String> generateDefaultHeaders(Sheet sheet) {
+        int colCount = 0;
         org.apache.poi.ss.usermodel.Row firstRow = sheet.getRow(0);
-        int columnCount = firstRow != null ? firstRow.getLastCellNum() : 0;
-        for (int i = 0; i < columnCount; i++) {
+        if (firstRow != null) colCount = firstRow.getLastCellNum();
+        List<String> headers = new ArrayList<>();
+        for (int i = 0; i < colCount; i++) {
             headers.add("Column" + (i + 1));
         }
+        return headers;
     }
 
-    /**
-     * 将单元格转换为字符串值
-     */
-    private String getCellValueAsString(Cell cell, Workbook workbook, boolean nullToEmpty, boolean trimValues) {
+    private String getCellString(Cell cell) {
         if (cell == null) {
             return nullToEmpty ? "" : null;
         }
-
-        String value;
         switch (cell.getCellType()) {
-            case STRING:
-                value = cell.getStringCellValue();
-                break;
+            case STRING: return trim(cell.getStringCellValue());
             case NUMERIC:
                 if (DateUtil.isCellDateFormatted(cell)) {
-                    value = cell.getDateCellValue().toString();
+                    return cell.getDateCellValue().toString();
                 } else {
                     double num = cell.getNumericCellValue();
-                    value = (num == (long) num) ? String.valueOf((long) num) : String.valueOf(num);
+                    if (num == (long) num) return String.valueOf((long) num);
+                    else return String.valueOf(num);
                 }
-                break;
-            case BOOLEAN:
-                value = String.valueOf(cell.getBooleanCellValue());
-                break;
+            case BOOLEAN: return String.valueOf(cell.getBooleanCellValue());
             case FORMULA:
                 try {
-                    return getCellValueAsString(
-                            workbook.getCreationHelper().createFormulaEvaluator().evaluateInCell(cell),
-                            workbook, nullToEmpty, trimValues
-                    );
+                    FormulaEvaluator evaluator = cell.getSheet().getWorkbook().getCreationHelper().createFormulaEvaluator();
+                    CellValue evaluatedValue = evaluator.evaluate(cell);
+                    switch (evaluatedValue.getCellType()) {
+                        case STRING: return trim(evaluatedValue.getStringValue());
+                        case NUMERIC: return String.valueOf(evaluatedValue.getNumberValue());
+                        case BOOLEAN: return String.valueOf(evaluatedValue.getBooleanValue());
+                        default: return nullToEmpty ? "" : null; // Handle other formula results
+                    }
                 } catch (Exception e) {
-                    value = cell.getCellFormula();
+                    // Log the error but return the formula string or empty string
+                    Log.warn("ExcelInput", "Error evaluating formula: " + cell.getCellFormula() + " - " + e.getMessage());
+                    return nullToEmpty ? "" : cell.getCellFormula();
                 }
-                break;
-            case BLANK:
-                value = nullToEmpty ? "" : null;
-                break;
-            default:
-                value = nullToEmpty ? "" : null;
+            case BLANK: return nullToEmpty ? "" : null;
+            default: return nullToEmpty ? "" : null;
         }
+    }
 
-        return trimValues && value != null ? value.trim() : value;
+    private String trim(String s) {
+        return trimValues && s != null ? s.trim() : s;
     }
 }

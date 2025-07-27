@@ -1,6 +1,4 @@
-// anno/Input.java
 package anno;
-
 import java.lang.annotation.*;
 
 @MetaAnno(

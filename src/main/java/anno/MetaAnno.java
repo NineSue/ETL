@@ -1,6 +1,4 @@
-// anno/MetaAnno.java
 package anno;
-
 import java.lang.annotation.*;
 
 @Target(ElementType.ANNOTATION_TYPE)

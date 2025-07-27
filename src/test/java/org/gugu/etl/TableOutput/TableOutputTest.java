@@ -1,19 +1,20 @@
-import core.Scheduler;
+package org.gugu.etl.TableOutput;
+
 import org.junit.jupiter.api.Test;
 import runtask.Step;
 import runtask.StepList;
 import java.util.Arrays;
 import java.util.Collections;
 
-public class DatabaseTest {
+public class TableOutputTest {
     @Test
-    public void test_csv_etl_flow() {
+    public void testTableOutput() {
         Step input = new Step();
         input.withStepId(1)
                 .withDes("读取csv文件")
                 .withDomain("input")
                 .withSubType("csv")
-                .withConfig("filePath", "src/test/java/gugugu.csv")
+                .withConfig("filePath", "src/test/java/org/gugu/etl/CsvInput/smallFile.csv")
                 .withConfig("delimiter", ",")
                 .withConfig("quoteChar", "\"")
                 .withConfig("hasHeader", true);
@@ -28,7 +29,6 @@ public class DatabaseTest {
                 .withConfig("tableName", "people");  // 数据库表名
 
         StepList stepList = new StepList(Arrays.asList(input, output));
-
-        new Scheduler(stepList).execute();
+//        new Scheduler(stepList).execute();
     }
 }

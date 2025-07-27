@@ -1,12 +1,10 @@
 package runtask;
 
-import cn.hutool.json.JSONConfig;
 import cn.hutool.json.JSONUtil;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.function.Predicate;
 
 public class StepList {
     List<Step> data = new ArrayList<>();

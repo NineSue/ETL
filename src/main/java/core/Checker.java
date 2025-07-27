@@ -1,5 +1,4 @@
 package core;
-
 import anno.MetaAnno;
 import org.reflections.Reflections;
 
@@ -49,7 +48,7 @@ public class Checker {
         } else {
             final String ANSI_RESET = "\u001B[0m";
             final String ANSI_GREEN = "\u001B[32m";
-            System.out.println(ANSI_GREEN + "完美！所有实现都符合规范！ദ്ദി˶ｰ̀֊ｰ́ )" + ANSI_RESET);
+            System.out.println(ANSI_GREEN + "完美！所有插件实现都符合接口规范！ദ്ദി˶ｰ̀֊ｰ́ )" + ANSI_RESET);
         }
     }
 

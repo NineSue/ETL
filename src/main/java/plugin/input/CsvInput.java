@@ -1,75 +1,114 @@
 package plugin.input;
-
 import anno.Input;
-import cn.hutool.core.io.FileUtil;
 import core.Channel;
 import core.flowdata.Row;
+import core.flowdata.RowSetTable;
 import core.intf.IInput;
-import lombok.var;
-
+import tool.Log;
+import java.io.BufferedReader;
 import java.io.File;
-import java.nio.charset.StandardCharsets;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
-@Input(type = "csv") // 与Factory扫描的注解类型一致
+@Input(type = "csv")
 public class CsvInput implements IInput {
-    private Map<String, Object> config; // 保存初始化配置
-    private char delimiter = ',';       // 默认分隔符
-    private char quoteChar = '"';       // 默认引号字符
-    private boolean hasHeader = true;   // 默认有表头
+    private Map<String, Object> config;
+    private char delimiter = ',';
+    private char quoteChar = '"';
+    private boolean hasHeader = true;
     private String filePath;
 
     @Override
     public void init(Map<String, Object> cfg) {
-        // 初始化配置并校验
         this.config = cfg;
         this.filePath = (String) cfg.get("filePath");
         String delimiterStr = (String) cfg.getOrDefault("delimiter", ",");
         String quoteStr = (String) cfg.getOrDefault("quoteChar", "\"");
         this.hasHeader = (Boolean) cfg.getOrDefault("hasHeader", true);
 
-        // 参数校验
         if (filePath == null || filePath.isEmpty()) {
-            throw new IllegalArgumentException("缺少文件路径！");
+            throw new IllegalArgumentException("Missing file path");
         }
         if (delimiterStr.length() != 1) {
-            throw new IllegalArgumentException("分隔符必须是一个字符");
+            throw new IllegalArgumentException("Delimiter must be a single character");
         }
         if (quoteStr.length() != 1) {
-            throw new IllegalArgumentException("引号字符必须是一个字符");
+            throw new IllegalArgumentException("Quote character must be a single character");
         }
+
         this.delimiter = delimiterStr.charAt(0);
         this.quoteChar = quoteStr.charAt(0);
+        Log.info("CsvInput", "Init with path: " + filePath);
     }
 
     @Override
-    public void start(Channel<Row> output) throws Exception {
+    public void start(List<Channel> outputs) throws Exception {
         File file = new File(filePath);
         if (!file.exists()) {
-            throw new IllegalArgumentException("文件不存在: " + filePath);
+            throw new IllegalArgumentException("File not found: " + filePath);
         }
 
-        // 读取文件行
-        var lines = FileUtil.readLines(file, StandardCharsets.UTF_8);
-        if (lines.isEmpty()) {
-            throw new IllegalArgumentException("CSV文件为空");
+        Log.info("CsvInput", "Start reading: " + filePath);
+        boolean headerProcessed = !hasHeader;
+        long lineCount = 0;
+        long startTime = System.currentTimeMillis();
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty()) continue;
+
+                lineCount++;
+
+                if (!headerProcessed) {
+                    Row headRow = parseCsvLine(line);
+                    // Assuming RowChangeTable() is a valid method that converts a Row to a RowSetTable (header schema)
+                    RowSetTable table = headRow.RowChangeTable();
+                    // Set Header to all output channels
+                    for (Channel output : outputs) {
+                        output.setHeader(table);
+                    }
+                    Log.header("CsvInput", String.join(", ", table.getField()));
+                    headerProcessed = true;
+                    continue;
+                }
+
+                Row row = parseCsvLine(line);
+                // Publish data to all output channels
+                for (Channel output : outputs) {
+                    output.publish(row);
+                }
+                Log.data("CsvInput", row.toString());
+
+                if (lineCount % 10000 == 0) {
+                    long elapsed = System.currentTimeMillis() - startTime;
+                    Log.info("CsvInput", "Processed " + lineCount + " lines");
+                }
+            }
+        } catch (IOException e) {
+            Thread.currentThread().interrupt(); // Ensure interrupt status is preserved
+            Log.error("CsvInput", "Read error: " + e.getMessage());
+            throw new Exception("Error reading CSV file", e);
+        } finally {
+            // Ensure channels are closed in all cases
+            long totalTime = System.currentTimeMillis() - startTime;
+            long linesPerSecond = lineCount * 1000 / Math.max(totalTime, 1);
+            Log.success("CsvInput", "Read completed");
+            Log.success("CsvInput", "Total lines: " + lineCount);
+            Log.success("CsvInput", "Time: " + totalTime + "ms");
+            Log.success("CsvInput", "Speed: " + linesPerSecond + " lines/sec");
+
+            // Close all output channels to signal end of stream
+            for (Channel output : outputs) {
+                output.close();
+            }
+            Log.info("CsvInput", "All output channels closed");
         }
-
-        // 处理表头（跳过表头行）
-        int dataStart = hasHeader ? 1 : 0;
-
-        // 逐行解析并发布到通道
-        for (int i = dataStart; i < lines.size(); i++) {
-            String line = lines.get(i).trim();
-            if (line.isEmpty()) continue;
-
-            Row row = parseCsvLine(line);
-            output.publish(row); // 通过通道发布数据
-        }
-        output.close(); // 数据发送完毕后关闭通道
     }
 
-    // 解析单行CSV数据（简化逻辑，保留核心功能）
     private Row parseCsvLine(String line) {
         Row row = new Row();
         StringBuilder current = new StringBuilder();
@@ -80,7 +119,7 @@ public class CsvInput implements IInput {
             if (c == quoteChar) {
                 if (i + 1 < line.length() && line.charAt(i + 1) == quoteChar) {
                     current.append(quoteChar);
-                    i++; // 跳过下一个引号
+                    i++;
                 } else {
                     inQuotes = !inQuotes;
                 }
@@ -91,12 +130,11 @@ public class CsvInput implements IInput {
                 current.append(c);
             }
         }
-        row.add(current.toString()); // 添加最后一个字段
+        row.add(current.toString());
 
         if (inQuotes) {
-            throw new IllegalArgumentException("CSV行包含未闭合的引号: " + line);
+            throw new IllegalArgumentException("Unclosed quotes in CSV line");
         }
-//        System.out.println(row);
         return row;
     }
 }

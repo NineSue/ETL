@@ -1,7 +1,7 @@
 package core;
-
 import anno.Input;
 import anno.Output;
+import anno.Process;
 import cn.hutool.core.util.ClassUtil;
 
 import java.lang.annotation.Annotation;
@@ -14,11 +14,8 @@ public class Factory {
     private static final String PKG = "plugin";
     private final Map<String, Class<?>> reg = new ConcurrentHashMap<>();
     private final Map<String, Object> pluginCache = new ConcurrentHashMap<>();
-    //线程安全的HashMap，确保不会出现俩个线程判断无缓存同时创建一个插件实例的情况(●´ω｀●)
-    //底层是分段锁的实现，细分一下情况，有补充请私me
-    // 查缓存 -> 有缓存返回
-    // 无缓存 -> 加锁 -> 再查缓存 -> 有缓存返回
-    // 无缓存 -> 创建实例 -> 放缓存 -> 解锁 -> 返回实例
+    // 线程安全的HashMap，确保不会出现两个线程同时创建插件实例
+    // 底层是分段锁实现
 
     public Factory() {
         init();
@@ -31,12 +28,12 @@ public class Factory {
     */
     @SuppressWarnings("unchecked")
     private void init() {
-        for(Class<? extends Annotation> a:new Class[]{Input.class, Process.class, Output.class}){
-            ClassUtil.scanPackageByAnnotation(PKG,a).forEach(cls->{
-                try{
-                    String type= (String) a.getMethod("type").invoke(cls.getAnnotation(a));
-                    reg.put(type,cls);
-                }catch (Exception e){
+        for (Class<? extends Annotation> a : new Class[]{Input.class, Process.class, Output.class}) {
+            ClassUtil.scanPackageByAnnotation(PKG, a).forEach(cls -> {
+                try {
+                    String type = (String) a.getMethod("type").invoke(cls.getAnnotation(a));
+                    reg.put(type, cls);
+                } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
             });
@@ -44,7 +41,7 @@ public class Factory {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> T getPlugin(String type,Class iface) {
+    public <T> T getPlugin(String type, Class<T> iface) {
         Object inst = pluginCache.computeIfAbsent(type, t -> {
             try {
                 return reg.get(type).getDeclaredConstructor().newInstance();

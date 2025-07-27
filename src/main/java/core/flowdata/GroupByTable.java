@@ -1,5 +1,4 @@
 package core.flowdata;
-
 import lombok.Getter;
 
 import java.util.ArrayList;
