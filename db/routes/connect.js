@@ -44,6 +44,7 @@ router.post('/', async (req, res) => {
 
         res.json({
             code: 200,
+            message: "数据库连接配置保存成功",
             data: {
                 id: result.insertId,
                 name,

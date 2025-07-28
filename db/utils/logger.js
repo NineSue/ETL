@@ -1,4 +1,3 @@
-// src/utils/logger.js
 const { createLogger, format, transports } = require('winston');
 const path = require('path');
 
@@ -41,13 +40,13 @@ const logger = createLogger({
     transports: [
         // 错误日志（持久化）
         new transports.File({
-            filename: path.join(__dirname, '../../logs/error.log'),
+            filename: path.join(__dirname, '../../db/logs/error.log'),
             level: 'error',
             maxsize: 1024 * 1024 * 5 // 5MB
         }),
         // 综合日志（持久化）
         new transports.File({
-            filename: path.join(__dirname, '../../logs/combined.log'),
+            filename: path.join(__dirname, '../../db/logs/combined.log'),
             maxsize: 1024 * 1024 * 10 // 10MB
         }),
         // 控制台输出（仅开发环境）

@@ -28,26 +28,24 @@ router.post('/preview', async (req, res) => {
         res.json({
             code: 200,
             data: {
-                columns: fields || [],
+                connectionId: connectionId,
+                sql: sql,
+                columns: fields ? fields.map(f => f.name) : [],
                 rows: rows || [],
-                sql,
-                connectionId,
                 rowCount: rowCount || 0
             }
         });
 
     } catch (error) {
-        console.error('查询执行错误:', {
+        console.error('SQL预览执行出错:', {
             error: error.message,
             stack: error.stack,
-            sql,
-            connectionId
+            connectionId,
+            sql
         });
-
         res.status(500).json({
             code: 500,
-            message: `查询执行失败: ${error.message}`,
-            sql: sql
+            message: 'SQL执行失败: ' + error.message
         });
     }
 });

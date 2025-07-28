@@ -1,9 +1,11 @@
 const MySQL = require('./MySQL');
 const PostgreSQL = require('./PostgreSQL');
+const AccessDatabase = require('./Access');
 
 const databaseTypes = {
     [MySQL.getType()]: MySQL,
-    [PostgreSQL.getType()]: PostgreSQL
+    [PostgreSQL.getType()]: PostgreSQL,
+    [AccessDatabase.getType()]: AccessDatabase
 };
 
 class DatabaseFactory {
