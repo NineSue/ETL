@@ -1,12 +1,15 @@
 package org.gugu.etl.TableOutput;
 
 import core.Scheduler;
+import org.junit.jupiter.api.Test;
 import runtask.Step;
 import runtask.StepList;
 import java.util.Arrays;
 import java.util.Collections;
 
+
 public class TableInputTest {
+    @Test
     public void test_http_etl_flow() throws InterruptedException {
         Step input = new Step();
         input.withStepId(1)
