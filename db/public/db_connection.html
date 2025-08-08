@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>数据库连接配置</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f0f0;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      display: flex;
+      width: 800px;
+      margin: 50px auto;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .sidebar {
+      width: 150px;
+      background-color: #e0e0e0;
+      border-right: 1px solid #ccc;
+      padding: 10px 0;
+    }
+
+    .sidebar ul {
+      list-style-type: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .sidebar li {
+      padding: 10px;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sidebar li:hover {
+      background-color: #d0d0d0;
+    }
+
+    .sidebar li.active {
+      background-color: #007bff;
+      color: white;
+    }
+
+    .main {
+      flex-grow: 1;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card {
+      background-color: #f9f9f9;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: row;
+    }
+
+    .left-column {
+      width: 40%;
+      padding-right: 20px;
+    }
+
+    .right-column {
+      width: 60%;
+    }
+
+    .section {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 10px;
+    }
+
+    .section label {
+      font-weight: bold;
+    }
+
+    .section select,
+    .section input[type="text"],
+    .section input[type="password"] {
+      padding: 8px;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+    }
+
+    .button-group {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 20px;
+    }
+
+    .button-group button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+
+    .button-group .primary {
+      background-color: #007bff;
+      color: white;
+    }
+
+    .button-group .primary:hover {
+      background-color: #0056b3;
+    }
+
+    .button-group .default {
+      background-color: #ccc;
+      color: black;
+    }
+
+    .button-group .default:hover {
+      background-color: #bbb;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .help-button:hover {
+      background-color: #218838 !important;
+    }
+
+    .pure-black-table {
+      width: 100%;
+      border: 1px solid #000;
+      border-collapse: collapse;
+      background: white;
+    }
+
+    .pure-black-table th,
+    .pure-black-table td {
+      border: 1px solid #000;
+      padding: 12px;
+      width: 50%; /* 强制等分列宽 */
+    }
+
+    .param-table-wrapper {
+      margin: 20px 0;
+    }
+
+    .help-btn {
+      border: 1px solid #000;
+      margin-top: 15px;
+      padding: 8px 16px;
+    }
+
+    .pure-black-table th {
+      border: 2px solid #000; /* 加粗边框 */
+      background-color: #f0f0f0; /* 浅灰色背景 */
+      font-weight: bold; /* 加粗文字 */
+      padding: 12px;
+    }
+
+    /* 可输入单元格样式 */
+    .pure-black-table td input {
+      background: transparent;
+      outline: none;
+    }
+
+    .pure-black-table td input:focus {
+      background: #fff;
+      box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.2);
+    }
+
+    /* 帮助按钮样式调整 */
+    .help-btn {
+      background: #858585;
+      color: white;
+      border-radius: 4px;
+      padding: 8px 16px;
+      transition: background 0.3s;
+    }
+
+    .help-btn:hover {
+      background: #262626;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="sidebar">
+    <ul>
+      <li class="active" data-tab="general">一般</li>
+      <li data-tab="options">选项</li>
+      <li data-tab="pool">连接池</li>
+      <li data-tab="cluster">集群</li>
+    </ul>
+  </div>
+  <div class="main">
+    <!-- 一般 -->
+    <div id="general" class="tab-content">
+      <div class="section">
+        <label for="connectionName">连接名称:</label>
+        <input type="text" id="connectionName" name="connectionName">
+      </div>
+      <div class="card">
+        <div class="left-column">
+          <div class="section">
+            <label for="connectionType">连接类型:</label>
+            <select id="connectionType" name="connectionType">
+              <option value="mysql">MySQL</option>
+              <option value="postgresql">PostgreSQL</option>
+              <!-- 其他连接类型选项 -->
+            </select>
+          </div>
+          <div class="section">
+            <label for="connectionMethod">连接方式:</label>
+            <select id="connectionMethod" name="connectionMethod">
+              <option value="jdbc">JDBC</option>
+              <!-- 其他连接方式选项 -->
+            </select>
+          </div>
+        </div>
+        <div class="right-column">
+          <div class="section">
+            <label for="hostName">主机名称:</label>
+            <input type="text" id="hostName" name="hostName">
+          </div>
+          <div class="section">
+            <label for="port">端口:</label>
+            <input type="text" id="port" name="port">
+          </div>
+          <div class="section">
+            <label for="databaseName">数据库名称:</label>
+            <input type="text" id="databaseName" name="databaseName">
+          </div>
+          <div class="section">
+            <label for="schemaName">模式名称:</label>
+            <input type="text" id="schemaName" name="schemaName">
+          </div>
+          <div class="section">
+            <label for="username">用户名:</label>
+            <input type="text" id="username" name="username">
+          </div>
+          <div class="section">
+            <label for="password">密码:</label>
+            <input type="password" id="password" name="password">
+          </div>
+        </div>
+      </div>
+      <div class="button-group">
+        <div class="buttons">
+          <button type="button" class="primary" id="testConnection">测试连接</button>
+          <button type="button" class="primary">浏览</button>
+        </div>
+        <div class="buttons">
+          <button type="button" class="default">取消</button>
+          <button type="button" class="primary" id="confirmButton">确认</button>
+        </div>
+      </div>
+      <!-- 添加一个区域用于显示操作结果 -->
+      <div id="result" style="margin-top: 20px; color: #555;"></div>
+    </div>
+
+    <!-- 选项 -->
+    <div id="options" class="tab-content hidden">
+      <h3 style="margin:10px 0">命名参数：</h3>
+      <div class="param-table-wrapper">
+        <table class="pure-black-table">
+          <thead>
+          <tr>
+            <th style="border-right: 2px solid #000;background:#f0f0f0;">命名参数</th>
+            <th style="background:#f0f0f0;">值</th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr>
+            <td><input type="text" style="width:100%;border:none;padding:8px"></td>
+            <td><input type="text" style="width:100%;border:none;padding:8px"></td>
+          </tr>
+          <tr>
+            <td><input type="text" style="width:100%;border:none;padding:8px"></td>
+            <td><input type="text" style="width:100%;border:none;padding:8px"></td>
+          </tr>
+          <tr>
+            <td><input type="text" style="width:100%;border:none;padding:8px"></td>
+            <td><input type="text" style="width:100%;border:none;padding:8px"></td>
+          </tr>
+          </tbody>
+        </table>
+        <div style="text-align:right;margin-top:10px">
+          <button type="button" class="help-btn">
+            <i class="fas fa-question-circle"></i> 帮助
+          </button>
+        </div>
+      </div>
+
+      <div class="button-group">
+        <div class="buttons">
+          <button type="button" class="primary">测试</button>
+          <button type="button" class="primary">浏览</button>
+        </div>
+        <div class="buttons">
+          <button type="button" class="default">取消</button>
+          <button type="button" class="primary">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 连接池 -->
+    <div id="pool" class="tab-content hidden">
+      <div class="section">
+        <label>
+          <input type="checkbox" id="usePool" name="usePool">
+          使用连接池
+        </label>
+      </div>
+      <div class="section">
+        <label for="initialPoolSize">连接池初始大小</label>
+        <input type="text" id="initialPoolSize" name="initialPoolSize">
+      </div>
+      <div class="section">
+        <label for="maxIdleConnections">最大空闲空间</label>
+        <input type="text" id="maxIdleConnections" name="maxIdleConnections">
+      </div>
+      <div class="section">
+        <h3>命名参数：</h3>
+        <table class="scrollable-table">
+          <thead>
+          <tr>
+            <th>参数名</th>
+            <th>值</th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr>
+            <td><input type="checkbox" checked>defaultAutoCommit</td>
+            <td>True</td>
+          </tr>
+          <tr>
+            <td><input type="checkbox">defaultReadOnly</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox">defaultTransactionIsolation</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox">defaultCatalog</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><input type="checkbox">initialSize</td>
+            <td>0</td>
+          </tr>
+          <!-- Add more rows as needed -->
+          </tbody>
+        </table>
+        <button type="button" class="reset-button">恢复默认设置</button>
+      </div>
+      <div class="section description">
+        <label for="description">描述:</label>
+        <div class="notepad">
+          <textarea id="description" name="description"></textarea>
+        </div>
+      </div>
+      <div class="button-group">
+        <div class="buttons">
+          <button type="button" class="primary">测试</button>
+          <button type="button" class="primary">浏览</button>
+        </div>
+        <div class="buttons">
+          <button type="button" class="default">取消</button>
+          <button type="button" class="primary">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 集群 -->
+    <div id="cluster" class="tab-content hidden">
+      <div class="section">
+        <label>
+          <input type="checkbox" id="useCluster" name="useCluster">
+          使用集群
+        </label>
+      </div>
+      <div class="card">
+        <div class="left-column">
+          <div class="section">
+            <label for="clusterPartition">分区:</label>
+            <input type="text" id="clusterPartition" name="clusterPartition">
+          </div>
+          <div class="section">
+            <label for="clusterHostName">主机名称:</label>
+            <input type="text" id="clusterHostName" name="clusterHostName">
+          </div>
+        </div>
+        <div class="right-column">
+          <div class="section">
+            <label for="clusterPort">端口:</label>
+            <input type="text" id="clusterPort" name="clusterPort">
+          </div>
+          <div class="section">
+            <label for="clusterDatabaseName">数据库名称:</label>
+            <input type="text" id="clusterDatabaseName" name="clusterDatabaseName">
+          </div>
+          <div class="section">
+            <label for="clusterUserName">用户名:</label>
+            <input type="text" id="clusterUserName" name="clusterUserName">
+          </div>
+          <div class="section">
+            <label for="clusterPassword">密码:</label>
+            <input type="password" id="clusterPassword" name="clusterPassword">
+          </div>
+        </div>
+      </div>
+      <div class="button-group">
+        <div class="buttons">
+          <button type="button" class="primary">测试</button>
+          <button type="button" class="primary">浏览</button>
+        </div>
+        <div class="buttons">
+          <button type="button" class="default">取消</button>
+          <button type="button" class="primary">确认</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 获取侧边栏的所有选项
+  const sidebarItems = document.querySelectorAll('.sidebar li');
+  const tabContents = document.querySelectorAll('.tab-content');
+
+  // 添加点击事件监听
+  sidebarItems.forEach(item => {
+    item.addEventListener('click', () => {
+      // 移除所有选项的 active 类
+      sidebarItems.forEach(li => li.classList.remove('active'));
+      // 添加 active 类到当前点击的选项
+      item.classList.add('active');
+
+      // 获取当前选项对应的 tab 内容
+      const tabId = item.getAttribute('data-tab');
+      const targetTab = document.getElementById(tabId);
+
+      // 隐藏所有 tab 内容
+      tabContents.forEach(tab => tab.classList.add('hidden'));
+      // 显示当前 tab 内容
+      targetTab.classList.remove('hidden');
+    });
+  });
+
+  // 获取测试连接按钮和结果显示区域
+  const testConnectionButton = document.getElementById('testConnection');
+  const resultArea = document.getElementById('result');
+
+  // 测试连接状态
+  testConnectionButton.addEventListener('click', async () => {
+    // 获取用户输入的连接信息
+    const connectionType = document.getElementById('connectionType').value;
+    const hostName = document.getElementById('hostName').value;
+    const port = document.getElementById('port').value;
+    const databaseName = document.getElementById('databaseName').value;
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+
+    // 构造请求数据
+    const requestData = {
+      type: connectionType,
+      config: {
+        host: hostName,
+        port: port,
+        database: databaseName,
+        username: username,
+        password: password
+      }
+    };
+
+    // 发送POST请求到后端接口
+    try {
+      const response = await fetch('http://localhost:3000/api/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+      });
+
+      const result = await response.json();
+
+      // 显示结果
+      if (result.code === 200) {
+        resultArea.innerHTML = `<p style="color: green;">连接成功！</p>`;
+      } else {
+        resultArea.innerHTML = `<p style="color: red;">连接失败：${result.message}</p>`;
+      }
+    } catch (error) {
+      resultArea.innerHTML = `<p style="color: red;">连接失败：${error.message}</p>`;
+    }
+  });
+
+  // 通过ID绑定确认按钮
+  document.getElementById('confirmButton').addEventListener('click', async function() {
+    // 收集完整连接信息
+    const connectionConfig = {
+      name: document.getElementById('connectionName').value,
+      type: document.getElementById('connectionType').value,
+      config: {
+        host: document.getElementById('hostName').value,
+        port: document.getElementById('port').value,
+        database: document.getElementById('databaseName').value,
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value
+      }
+    };
+
+    // 验证必填字段
+    if (!connectionConfig.name || !connectionConfig.config.host || !connectionConfig.config.database) {
+      alert('请填写连接名称、主机和数据库名称等必填字段！');
+      return;
+    }
+
+    try {
+      // 显示加载状态
+      resultArea.innerHTML = `<p style="color: blue;">正在保存配置...</p>`;
+
+      // 发送到后端保存
+      const response = await fetch('http://localhost:3000/api/connect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(connectionConfig)
+      });
+
+      const result = await response.json();
+
+      if (result.code === 200) {
+        resultArea.innerHTML = `<p style="color: green;">${result.message}</p>`;
+        alert(`保存成功！配置名称: ${result.data.name}`);
+
+        setTimeout(() => {
+          window.close();
+        }, 1000);
+
+      } else {
+        resultArea.innerHTML = `<p style="color: red;">保存失败: ${result.message}</p>`;
+        alert(`保存失败: ${result.message}\n${result.detail || ''}`);
+      }
+    } catch (error) {
+      resultArea.innerHTML = `<p style="color: red;">请求出错: ${error.message}</p>`;
+      alert(`请求出错: ${error.message}`);
+    }
+  });
+</script>
+</body>
+</html>
